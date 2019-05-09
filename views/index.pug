@@ -1,0 +1,8 @@
+html
+  head
+    title= title
+  body
+    h3= message
+    form(action="/import", method="post", enctype="multipart/form-data")
+        input(type="file", name="ufile")
+        input(type="submit", name="Upload")

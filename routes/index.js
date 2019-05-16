@@ -2,15 +2,12 @@ const express = require('express');
 const router = express.Router();
 const uuid = require('uuidv4');
 
-
 router.get('/', (req, res) => {
   res.render('index', { title: 'CSV Upload', message: 'Please select csv to upload' })
 });
 
 const path = require('path');
 const multer = require('multer');
-// const csv = require('csv-parser');
-// const fs = require('fs');
 
 // setup storage
 const storage = multer.diskStorage({
@@ -57,11 +54,9 @@ router.post('/import', (req, res) => {
                 error: err
             })
         } else {
-            const jsonArray=await csv({includeColumns: /(Shipping |Email|sku|quantity|Name|Subtotal)/,})
+            const jsonArray=await csv({includeColumns: /(Shipping |Email|sku|quantity|Name|Subtotal|Financial)/,})
             .fromFile(req.file.path);
             await processFile(req.file.originalname,jsonArray);
-            // console.log(req.file.path)
-            // console.log(jsonArray)
             return res.send('Received the request')
         }
     })
@@ -100,33 +95,18 @@ function processFile(fileName,jsonObject) {
 
     });
 
-    // const records = [
-    //     {name: 'Bob',  lang: 'French, English'},
-    //     {name: 'Mary', lang: 'English'}
-    // ];
     const records = jsonObject;
     records.forEach((record)=>{
         record.Name =  uuid() + record.Name;
         record.DisplayableOrderID = record.Name;
         record.DisplayableOrderDate = new Date().toISOString().split('.')[0];
         record.Market = 'ATVPDKIKX0DER'
-        // console.log(record.DisplayableOrderDate)
-        // .log(record)
-        // id = uuid()
+        record.FulfillmentAction = record['Financial Status'] == 'paid' ? 'Ship' : 'Hold';
     })
-    // console.log(JSON.stringify(records[0]))
-
     csvWriter.writeRecords(records)       // returns a promise
         .then(() => {
             console.log('...Done');
         });
-
-    // This will produce a file path/to/file.csv with following contents:
-    //
-    //   NAME,LANGUAGE
-    //   Bob,"French, English"
-    //   Mary,English
-
 }
 
 module.exports = router;

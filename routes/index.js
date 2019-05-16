@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
+const uuid = require('uuidv4');
+
 
 router.get('/', (req, res) => {
   res.render('index', { title: 'CSV Upload', message: 'Please select csv to upload' })
 });
 
-const path = require('path')
+const path = require('path');
 const multer = require('multer');
+// const csv = require('csv-parser');
+// const fs = require('fs');
 
 // setup storage
 const storage = multer.diskStorage({
@@ -42,8 +46,10 @@ function checkFileType(file,cb){
 }
 
 //TODO: this is broken
+const csv = require('csvtojson');
+
 router.post('/import', (req, res) => {
-    upload(req, res, (err) => {
+    upload(req, res, async (err) => {
         err = req.file ? null : 'Error: No File Uploaded';
         if(err) {
             res.render('index',{
@@ -51,9 +57,76 @@ router.post('/import', (req, res) => {
                 error: err
             })
         } else {
+            const jsonArray=await csv({includeColumns: /(Shipping |Email|sku|quantity|Name|Subtotal)/,})
+            .fromFile(req.file.path);
+            await processFile(req.file.originalname,jsonArray);
+            // console.log(req.file.path)
+            // console.log(jsonArray)
             return res.send('Received the request')
         }
     })
 });
+
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+function processFile(fileName,jsonObject) {
+    const csvWriter = createCsvWriter({
+        path: 'output_files/'+'outfile' + '.' + Date.now() + '.csv',
+        // leftside is shopify terms, right side is amazon terms
+        header: [
+            {id: 'Name', title: 'MerchantFulfillmentOrderID'},
+            {id: 'DisplayableOrderID', title: 'DisplayableOrderID'},
+            {id: 'DisplayableOrderDate', title: 'DisplayableOrderDate'},
+            {id: 'Lineitem sku', title: 'MerchantSKU'},
+            {id: 'Lineitem quantity', title: 'Quantity'},
+            {id: 'MerchantFulfillmentOrderItemID', title: 'MerchantFulfillmentOrderItemID'},
+            {id: 'GiftMessage', title: 'GiftMessage'},
+            {id: 'DisplayableComment', title: 'DisplayableComment'},
+            {id: 'Subtotal', title: 'PerUnitDeclaredValue'},
+            {id: 'DisplayableOrderComment', title: 'DisplayableOrderComment'},
+            {id: 'DeliverySLA', title: 'DeliverySLA'},
+            {id: 'Shipping Name', title: 'AddressName'},
+            {id: 'Shipping Address1', title: 'AddressFieldOne'},
+            {id: 'Shipping Address2', title: 'AddressFieldTwo'},
+            {id: 'AddressFieldThree', title: 'AddressFieldThree'},
+            {id: 'Shipping City', title: 'AddressCity'},
+            {id: 'Shipping Country', title: 'AddressCountryCode'},
+            {id: 'Shipping Province', title: 'AddressStateOrRegion'},
+            {id: 'Shipping Zip', title: 'AddressPostalCode'},
+            {id: 'Shipping Phone', title: 'AddressPhoneNumber'},
+            {id: 'Email', title: 'NotificationEmail'},
+            {id: 'FulfillmentAction', title: 'FulfillmentAction'},
+            {id: 'Market', title: 'MarketplaceID'},
+        ]
+
+    });
+
+    // const records = [
+    //     {name: 'Bob',  lang: 'French, English'},
+    //     {name: 'Mary', lang: 'English'}
+    // ];
+    const records = jsonObject;
+    records.forEach((record)=>{
+        record.Name =  uuid() + record.Name;
+        record.DisplayableOrderID = record.Name;
+        record.DisplayableOrderDate = new Date().toISOString().split('.')[0];
+        record.Market = 'ATVPDKIKX0DER'
+        // console.log(record.DisplayableOrderDate)
+        // .log(record)
+        // id = uuid()
+    })
+    // console.log(JSON.stringify(records[0]))
+
+    csvWriter.writeRecords(records)       // returns a promise
+        .then(() => {
+            console.log('...Done');
+        });
+
+    // This will produce a file path/to/file.csv with following contents:
+    //
+    //   NAME,LANGUAGE
+    //   Bob,"French, English"
+    //   Mary,English
+
+}
 
 module.exports = router;
